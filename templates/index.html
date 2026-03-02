@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DataCraft — Synthetic Data Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="/static/style.css" rel="stylesheet" />
+</head>
+
+<body>
+
+  <nav>
+    <div class="nav-logo">
+      <div class="logo-icon">⚡</div>
+      DataCraft
+    </div>
+    <span class="nav-tag">Synthetic Data</span>
+  </nav>
+
+  <div class="page">
+
+    <!-- LEFT SIDEBAR -->
+    <div class="sidebar" style="position:relative;">
+
+      <div class="sidebar-top">
+        <div class="sidebar-title">Configuration</div>
+        <div class="rows-control">
+          <span class="rows-label">Rows to generate</span>
+          <div class="rows-input-wrap">
+            <button class="rows-btn" onclick="changeRows(-10)">−</button>
+            <input class="rows-num" type="number" id="nRows" value="50" min="1" max="10000" />
+            <button class="rows-btn" onclick="changeRows(10)">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="fields-header">
+        <div class="fields-header-title">Fields</div>
+        <div class="field-count" id="fieldCount">0</div>
+      </div>
+
+      <div class="fields-scroll" id="fieldsList"></div>
+
+      <div class="sidebar-bottom">
+        <button class="btn-add-field" onclick="addField()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          Add Field
+        </button>
+        <button class="btn-generate" id="btnGenerate" onclick="generate()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M12 7L2 12.5V1.5L12 7z" fill="currentColor" />
+          </svg>
+          Generate Data
+        </button>
+      </div>
+
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p>Generating...</p>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="output">
+
+      <div class="output-header">
+        <div class="output-title">
+          Preview
+          <span class="status-pill" id="statusPill">No data</span>
+        </div>
+        <div class="download-bar" id="downloadBar">
+          <button class="btn-dl btn-dl-csv" onclick="downloadCSV()">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M6.5 1v8M3.5 6l3 3 3-3M1.5 11h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+            Download CSV
+          </button>
+          <button class="btn-dl btn-dl-json" onclick="downloadJSON()">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M6.5 1v8M3.5 6l3 3 3-3M1.5 11h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+            Export JSON
+          </button>
+        </div>
+
+      </div>
+
+      <div class="output-body" id="outputBody">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3>Nothing generated yet</h3>
+          <p>Set up your fields on the left and click <strong>Generate Data</strong> to see results here.</p>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="stats-row">
+          <div class="stat-chip" id="sc1"><b id="rowCount">0</b> rows</div>
+          <div class="stat-chip" id="sc2"><b id="colCount">0</b> cols</div>
+          <div class="stat-chip" id="sc3"><b id="sizeCount">0</b> KB</div>
+        </div>
+        <span class="dl-info" id="dlInfo"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <span class="ti" id="toastIcon"></span>
+    <span id="toastMsg"></span>
+  </div>
+
+  <script>
+    let generatedData = [];
+    let fieldId = 0;
+
+    const TYPE_OPTS = {
+      int: ['min', 'max', 'unique'],
+      float: ['min', 'max', 'decimals'],
+      name_first: [],
+      name_last: [],
+      email: [],
+      date: ['start', 'end'],
+      categorical: ['categories'],
+      boolean: [],
+      text: ['sentences'],
+      derived: ['template'],
+    };
+
+    const DEFAULTS = [
+      { name: 'id', type: 'int', min: 1000, max: 9999, unique: true },
+      { name: 'first_name', type: 'name_first' },
+      { name: 'last_name', type: 'name_last' },
+      { name: 'email', type: 'derived', template: '{first_name}.{last_name}@example.com' },
+      { name: 'age', type: 'int', min: 18, max: 65 },
+      { name: 'department', type: 'categorical', categories: 'HR,Engineering,Sales,Marketing' },
+      { name: 'active', type: 'boolean' },
+    ];
+
+    window.onload = () => DEFAULTS.forEach(f => addField(f));
+
+    function changeRows(d) {
+      const el = document.getElementById('nRows');
+      el.value = Math.max(1, Math.min(10000, (parseInt(el.value) || 50) + d));
+    }
+
+    function addField(d = {}) {
+      const id = fieldId++;
+      const type = d.type || 'int';
+      const opts = Object.keys(TYPE_OPTS).map(t =>
+        `<option value="${t}" ${t === type ? 'selected' : ''}>${t}</option>`
+      ).join('');
+
+      const el = document.createElement('div');
+      el.className = 'field-card';
+      el.id = `field-${id}`;
+      el.innerHTML = `
+    <div class="field-row1">
+      <input class="field-name-input" type="text" placeholder="field_name" value="${d.name || ''}" id="fn-${id}"/>
+      <select class="type-select" id="ft-${id}" onchange="updateOpts(${id},this.value)">${opts}</select>
+      <button class="remove-btn" onclick="removeField(${id})" title="Remove">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1.5 1.5l10 10M11.5 1.5l-10 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="field-opts" id="fo-${id}"></div>
+  `;
+      document.getElementById('fieldsList').appendChild(el);
+      updateOpts(id, type, d);
+      updateCount();
+    }
+
+    function updateOpts(id, type, d = {}) {
+      const opts = TYPE_OPTS[type] || [];
+      let html = '';
+      if (opts.includes('min')) html += `<input class="opt-input" type="number" placeholder="Min" value="${d.min ?? 0}" id="fmin-${id}"/>`;
+      if (opts.includes('max')) html += `<input class="opt-input" type="number" placeholder="Max" value="${d.max ?? 100}" id="fmax-${id}"/>`;
+      if (opts.includes('decimals')) html += `<input class="opt-input" type="number" placeholder="Decimals" value="${d.decimals ?? 2}" id="fdec-${id}" style="width:88px"/>`;
+      if (opts.includes('start')) html += `<input class="opt-input" type="text" placeholder="2020-01-01" value="${d.start || '2020-01-01'}" id="fstart-${id}" style="width:104px"/>`;
+      if (opts.includes('end')) html += `<input class="opt-input" type="text" placeholder="2024-12-31" value="${d.end || '2024-12-31'}" id="fend-${id}" style="width:104px"/>`;
+      if (opts.includes('categories')) html += `<input class="opt-input wide" type="text" placeholder="cat1, cat2, cat3" value="${d.categories || ''}" id="fcat-${id}"/>`;
+      if (opts.includes('sentences')) html += `<input class="opt-input" type="number" placeholder="Sentences" value="${d.sentences ?? 1}" id="fsent-${id}" style="width:88px"/>`;
+      if (opts.includes('template')) html += `<input class="opt-input xwide" type="text" placeholder="{first_name}@mail.com" value="${d.template || ''}" id="ftpl-${id}"/>`;
+      if (opts.includes('unique')) html += `<label class="unique-wrap"><input type="checkbox" id="funiq-${id}" ${d.unique ? 'checked' : ''}/> Unique</label>`;
+      document.getElementById(`fo-${id}`).innerHTML = html;
+    }
+
+    function removeField(id) {
+      document.getElementById(`field-${id}`)?.remove();
+      updateCount();
+    }
+
+    function updateCount() {
+      document.getElementById('fieldCount').textContent =
+        document.querySelectorAll('.field-card').length;
+    }
+
+    function buildSchema() {
+      const n_rows = parseInt(document.getElementById('nRows').value) || 50;
+      const fields = [];
+      document.querySelectorAll('.field-card').forEach(card => {
+        const m = card.id.match(/field-(\d+)/);
+        if (!m) return;
+        const id = m[1];
+        const name = document.getElementById(`fn-${id}`)?.value?.trim();
+        const type = document.getElementById(`ft-${id}`)?.value;
+        if (!name || !type) return;
+        const f = { name, type };
+        if (document.getElementById(`fmin-${id}`)) f.min = parseFloat(document.getElementById(`fmin-${id}`).value);
+        if (document.getElementById(`fmax-${id}`)) f.max = parseFloat(document.getElementById(`fmax-${id}`).value);
+        if (document.getElementById(`fdec-${id}`)) f.decimals = parseInt(document.getElementById(`fdec-${id}`).value);
+        if (document.getElementById(`fstart-${id}`)) f.start = document.getElementById(`fstart-${id}`).value;
+        if (document.getElementById(`fend-${id}`)) f.end = document.getElementById(`fend-${id}`).value;
+        if (document.getElementById(`fcat-${id}`)) f.categories = document.getElementById(`fcat-${id}`).value.split(',').map(s => s.trim()).filter(Boolean);
+        if (document.getElementById(`fsent-${id}`)) f.sentences = parseInt(document.getElementById(`fsent-${id}`).value);
+        if (document.getElementById(`ftpl-${id}`)) f.template = document.getElementById(`ftpl-${id}`).value;
+        if (document.getElementById(`funiq-${id}`)) f.unique = document.getElementById(`funiq-${id}`).checked;
+        fields.push(f);
+      });
+      return { n_rows, fields };
+    }
+
+    async function generate() {
+      const schema = buildSchema();
+      if (!schema.fields.length) { toast('Add at least one field', 'error'); return; }
+      document.getElementById('loadingOverlay').classList.add('show');
+      document.getElementById('btnGenerate').disabled = true;
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(schema)
+        });
+        const result = await res.json();
+        if (!res.ok || result.error) throw new Error(result.error || 'Generation failed');
+        generatedData = result.data;
+        renderTable(generatedData);
+        updateStats(generatedData);
+        document.getElementById('downloadBar').style.display = 'flex';
+        const pill = document.getElementById('statusPill');
+        pill.textContent = 'Ready'; pill.classList.add('live');
+        toast(`${result.count.toLocaleString()} rows generated`, 'success');
+      } catch (e) {
+        toast(e.message, 'error');
+      } finally {
+        document.getElementById('loadingOverlay').classList.remove('show');
+        document.getElementById('btnGenerate').disabled = false;
+      }
+    }
+
+    function renderTable(data) {
+      if (!data.length) return;
+      const keys = Object.keys(data[0]);
+      const preview = data.slice(0, 200);
+      let html = `<div class="table-wrap"><table><thead><tr><th class="rn">#</th>`;
+      keys.forEach(k => html += `<th>${k}</th>`);
+      html += `</tr></thead><tbody>`;
+      preview.forEach((row, i) => {
+        html += `<tr><td class="rn">${i + 1}</td>`;
+        keys.forEach(k => html += `<td title="${row[k]}">${row[k]}</td>`);
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+      if (data.length > 200)
+        html += `<div class="tfoot">Showing 200 of ${data.length.toLocaleString()} rows — download for all data</div>`;
+      html += `</div>`;
+      document.getElementById('outputBody').innerHTML = html;
+    }
+
+    function updateStats(data) {
+      const rows = data.length, cols = rows ? Object.keys(data[0]).length : 0;
+      const size = Math.round(JSON.stringify(data).length / 1024);
+      document.getElementById('rowCount').textContent = rows.toLocaleString();
+      document.getElementById('colCount').textContent = cols;
+      document.getElementById('sizeCount').textContent = size;
+      ['sc1', 'sc2', 'sc3'].forEach(id => document.getElementById(id).style.display = 'block');
+      document.getElementById('dlInfo').textContent = `${rows.toLocaleString()} rows × ${cols} columns`;
+    }
+
+    async function downloadCSV() {
+      const schema = buildSchema();
+      const res = await fetch('/download', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(schema)
+      });
+      if (!res.ok) { toast('Download failed', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'synthetic_data.csv'; a.click();
+      URL.revokeObjectURL(url);
+      toast('CSV downloaded', 'success');
+    }
+
+    function downloadJSON() {
+      if (!generatedData.length) { toast('Generate data first', 'error'); return; }
+      const blob = new Blob([JSON.stringify(generatedData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'synthetic_data.json'; a.click();
+      URL.revokeObjectURL(url);
+      toast('JSON exported', 'success');
+    }
+
+    function toast(msg, type = 'success') {
+      document.getElementById('toastIcon').textContent = type === 'success' ? '✓' : '✕';
+      document.getElementById('toastMsg').textContent = msg;
+      const el = document.getElementById('toast');
+      el.className = `toast ${type} show`;
+      setTimeout(() => el.classList.remove('show'), 3000);
+    }
+  </script>
+</body>
+
+</html>
