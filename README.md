@@ -2,6 +2,8 @@
 
 > A lightweight, web-based tool for generating realistic synthetic datasets from a visual schema builder. No database. No complex setup. Just run and generate.
 
+**🌐 Live Demo:** [https://datacraft-qq49.onrender.com](https://datacraft-qq49.onrender.com)
+
 ![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.0-black?style=flat-square&logo=flask)
 ![Faker](https://img.shields.io/badge/Faker-24.0-green?style=flat-square)
@@ -33,11 +35,13 @@ Built for developers, data scientists, and QA engineers who need realistic test 
 ## Project Structure
 
 ```
-datacraft/
 ├── app.py                  # Flask backend — routes, data generation logic
 ├── requirements.txt        # Python dependencies
+├── Procfile                # Deployment configuration (for Render.com)
 ├── templates/
 │   └── index.html          # Full frontend (single-file UI)
+├── static/
+│   └── style.css           # Professional CSS styling
 ├── output/                 # Optional: local CSV output folder
 └── README.md
 ```
@@ -168,4 +172,4 @@ GitHub: [@abdulrehmankz1](https://github.com/abdulrehmankz1)
 
 ---
 
-*Built with Python & Flask*
+*Built with Python & Flask — Last updated: 3/3/2026*
