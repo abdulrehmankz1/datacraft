@@ -99,6 +99,15 @@
         </div>
       </div>
 
+      <div class="pagination" id="pagination" style="display:none;">
+        <button class="page-btn" id="prevPage" onclick="changePage(-1)">← Prev</button>
+        <span class="page-info">Page
+          <input type="number" id="pageInput" class="page-input" min="1" onchange="goToPage(this.value)">
+          of <span id="totalPages">1</span>
+        </span>
+        <button class="page-btn" id="nextPage" onclick="changePage(1)">Next →</button>
+      </div>
+
       <div class="header-right">
         <div class="stats-row">
           <div class="stat-chip" id="sc1"><b id="rowCount">0</b> rows</div>
@@ -118,6 +127,8 @@
   <script>
     let generatedData = [];
     let fieldId = 0;
+    let currentPage = 1;
+    const ROWS_PER_PAGE = 100;
 
     const TYPE_OPTS = {
       int: ['min', 'max', 'unique'],
@@ -256,21 +267,59 @@
     function renderTable(data) {
       if (!data.length) return;
       const keys = Object.keys(data[0]);
-      // Show max 100 rows in preview for better performance
-      const preview = data.slice(0, 100);
+
+      // Calculate pagination
+      const totalPages = Math.ceil(data.length / ROWS_PER_PAGE);
+      const start = (currentPage - 1) * ROWS_PER_PAGE;
+      const end = Math.min(start + ROWS_PER_PAGE, data.length);
+      const pageData = data.slice(start, end);
+
       let html = `<div class="table-wrap"><table><thead><tr><th class="rn">#</th>`;
       keys.forEach(k => html += `<th>${k}</th>`);
       html += `</tr></thead><tbody>`;
-      preview.forEach((row, i) => {
-        html += `<tr><td class="rn">${i + 1}</td>`;
+      pageData.forEach((row, i) => {
+        html += `<tr><td class="rn">${start + i + 1}</td>`;
         keys.forEach(k => html += `<td title="${row[k]}">${row[k]}</td>`);
         html += `</tr>`;
       });
       html += `</tbody></table>`;
-      if (data.length > 100)
-        html += `<div class="tfoot">Showing 100 of ${data.length.toLocaleString()} rows — download for all data</div>`;
+
+      // Update pagination controls
+      const pagination = document.getElementById('pagination');
+      if (totalPages > 1) {
+        pagination.style.display = 'flex';
+        document.getElementById('pageInput').value = currentPage;
+        document.getElementById('pageInput').max = totalPages;
+        document.getElementById('totalPages').textContent = totalPages;
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage === totalPages;
+      } else {
+        pagination.style.display = 'none';
+      }
+
+      html += `<div class="tfoot">Showing ${start + 1}-${end} of ${data.length.toLocaleString()} rows</div>`;
       html += `</div>`;
       document.getElementById('outputBody').innerHTML = html;
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(generatedData.length / ROWS_PER_PAGE);
+      const newPage = currentPage + delta;
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        renderTable(generatedData);
+      }
+    }
+
+    function goToPage(pageNum) {
+      const totalPages = Math.ceil(generatedData.length / ROWS_PER_PAGE);
+      const page = parseInt(pageNum);
+      if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        renderTable(generatedData);
+      } else {
+        document.getElementById('pageInput').value = currentPage;
+      }
     }
 
     function updateStats(data) {
