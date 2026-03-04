@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DataCraft — Synthetic Data Generator</title>
+  <title>DataCraft — Synthetic Data Generator</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link href="/static/style.css" rel="stylesheet" />
 </head>
@@ -30,7 +30,7 @@
           <span class="rows-label">Rows to generate</span>
           <div class="rows-input-wrap">
             <button class="rows-btn" onclick="changeRows(-10)">−</button>
-            <input class="rows-num" type="number" id="nRows" value="50" min="1" max="10000" />
+            <input class="rows-num" type="number" id="nRows" value="50" min="1" max="50000" />
             <button class="rows-btn" onclick="changeRows(10)">+</button>
           </div>
         </div>
@@ -60,7 +60,7 @@
 
       <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
-        <p>Generating...</p>
+        <p id="loadingText">Generating...</p>
       </div>
     </div>
 
@@ -133,10 +133,10 @@
     };
 
     const DEFAULTS = [
-      { name: 'id', type: 'int', min: 1000, max: 9999, unique: true },
+      { name: 'id', type: 'int', min: 1, max: 999999 },
       { name: 'first_name', type: 'name_first' },
       { name: 'last_name', type: 'name_last' },
-      { name: 'email', type: 'derived', template: '{first_name}.{last_name}@example.com' },
+      { name: 'email', type: 'derived', template: 'user{id}@example.com' },
       { name: 'age', type: 'int', min: 18, max: 65 },
       { name: 'department', type: 'categorical', categories: 'HR,Engineering,Sales,Marketing' },
       { name: 'active', type: 'boolean' },
@@ -146,7 +146,7 @@
 
     function changeRows(d) {
       const el = document.getElementById('nRows');
-      el.value = Math.max(1, Math.min(10000, (parseInt(el.value) || 50) + d));
+      el.value = Math.max(1, Math.min(50000, (parseInt(el.value) || 50) + d));
     }
 
     function addField(d = {}) {
@@ -228,11 +228,13 @@
       const schema = buildSchema();
       if (!schema.fields.length) { toast('Add at least one field', 'error'); return; }
       document.getElementById('loadingOverlay').classList.add('show');
+      document.getElementById('loadingText').textContent = `Generating ${schema.n_rows.toLocaleString()} rows...`;
       document.getElementById('btnGenerate').disabled = true;
       try {
         const res = await fetch('/generate', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(schema)
+          body: JSON.stringify(schema),
+          signal: AbortSignal.timeout(120000) // 2 minute timeout
         });
         const result = await res.json();
         if (!res.ok || result.error) throw new Error(result.error || 'Generation failed');
@@ -254,7 +256,8 @@
     function renderTable(data) {
       if (!data.length) return;
       const keys = Object.keys(data[0]);
-      const preview = data.slice(0, 200);
+      // Show max 100 rows in preview for better performance
+      const preview = data.slice(0, 100);
       let html = `<div class="table-wrap"><table><thead><tr><th class="rn">#</th>`;
       keys.forEach(k => html += `<th>${k}</th>`);
       html += `</tr></thead><tbody>`;
@@ -264,8 +267,8 @@
         html += `</tr>`;
       });
       html += `</tbody></table>`;
-      if (data.length > 200)
-        html += `<div class="tfoot">Showing 200 of ${data.length.toLocaleString()} rows — download for all data</div>`;
+      if (data.length > 100)
+        html += `<div class="tfoot">Showing 100 of ${data.length.toLocaleString()} rows — download for all data</div>`;
       html += `</div>`;
       document.getElementById('outputBody').innerHTML = html;
     }

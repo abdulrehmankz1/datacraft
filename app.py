@@ -106,7 +106,7 @@ def generate_value(field: dict, row_context: dict, used_values: dict):
 
 
 def generate_data(schema: dict) -> list:
-    n_rows = max(1, min(int(schema.get("n_rows", 10)), 10_000))
+    n_rows = max(1, min(int(schema.get("n_rows", 10)), 50_000))
     fields = schema.get("fields", [])
 
     if not fields:
